@@ -16,7 +16,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function fetchActivities() {
     try {
-      const response = await fetch("/activities");
+      const response = await fetch(`/activities?cacheBust=${Date.now()}`, {
+        cache: "no-store",
+      });
       const activities = await response.json();
 
       activitiesList.innerHTML = "";
@@ -30,41 +32,49 @@ document.addEventListener("DOMContentLoaded", () => {
         const participantsList = document.createElement("ul");
         participantsList.className = "participants-list";
 
-        details.participants.forEach((participant) => {
-          const participantItem = document.createElement("li");
-          participantItem.className = "participant-item";
+        if (details.participants.length === 0) {
+          const emptyItem = document.createElement("li");
+          emptyItem.className = "participants-empty";
+          emptyItem.textContent = "No participants yet.";
+          participantsList.appendChild(emptyItem);
+        } else {
+          details.participants.forEach((participant) => {
+            const participantItem = document.createElement("li");
+            participantItem.className = "participant-item";
 
-          const participantName = document.createElement("span");
-          participantName.textContent = participant;
+            const participantName = document.createElement("span");
+            participantName.textContent = participant;
 
-          const removeButton = document.createElement("button");
-          removeButton.type = "button";
-          removeButton.className = "remove-participant";
-          removeButton.textContent = "×";
-          removeButton.setAttribute("aria-label", `Remove ${participant} from ${name}`);
-          removeButton.addEventListener("click", async () => {
-            try {
-              const deleteResponse = await fetch(
-                `/activities/${encodeURIComponent(name)}/signup?email=${encodeURIComponent(participant)}`,
-                { method: "DELETE" }
-              );
-              const deleteResult = await deleteResponse.json();
+            const removeButton = document.createElement("button");
+            removeButton.type = "button";
+            removeButton.className = "remove-participant";
+            removeButton.textContent = "✕";
+            removeButton.title = `Remove ${participant} from ${name}`;
+            removeButton.setAttribute("aria-label", `Remove ${participant} from ${name}`);
+            removeButton.addEventListener("click", async () => {
+              try {
+                const deleteResponse = await fetch(
+                  `/activities/${encodeURIComponent(name)}/signup?email=${encodeURIComponent(participant)}`,
+                  { method: "DELETE", cache: "no-store" }
+                );
+                const deleteResult = await deleteResponse.json();
 
-              if (deleteResponse.ok) {
-                showMessage(deleteResult.message, "success");
-                await fetchActivities();
-              } else {
-                showMessage(deleteResult.detail || "Could not remove participant.", "error");
+                if (deleteResponse.ok) {
+                  showMessage(deleteResult.message, "success");
+                  await fetchActivities();
+                } else {
+                  showMessage(deleteResult.detail || "Could not remove participant.", "error");
+                }
+              } catch (error) {
+                console.error("Error removing participant:", error);
+                showMessage("Failed to remove participant.", "error");
               }
-            } catch (error) {
-              console.error("Error removing participant:", error);
-              showMessage("Failed to remove participant.", "error");
-            }
-          });
+            });
 
-          participantItem.append(participantName, removeButton);
-          participantsList.appendChild(participantItem);
-        });
+            participantItem.append(participantName, removeButton);
+            participantsList.appendChild(participantItem);
+          });
+        }
 
         activityCard.innerHTML = `
           <h4>${name}</h4>
@@ -73,10 +83,16 @@ document.addEventListener("DOMContentLoaded", () => {
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
         `;
 
+        const participantSection = document.createElement("div");
+        participantSection.className = "participant-section";
+
         const participantHeading = document.createElement("p");
+        participantHeading.className = "participant-heading";
         participantHeading.innerHTML = "<strong>Participants:</strong>";
-        activityCard.appendChild(participantHeading);
-        activityCard.appendChild(participantsList);
+
+        participantSection.appendChild(participantHeading);
+        participantSection.appendChild(participantsList);
+        activityCard.appendChild(participantSection);
 
         activitiesList.appendChild(activityCard);
 
@@ -102,6 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
         `/activities/${encodeURIComponent(activity)}/signup?email=${encodeURIComponent(email)}`,
         {
           method: "POST",
+          cache: "no-store",
         }
       );
 
@@ -109,8 +126,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (response.ok) {
         showMessage(result.message, "success");
-        signupForm.reset();
         await fetchActivities();
+        signupForm.reset();
       } else {
         showMessage(result.detail || "An error occurred", "error");
       }
